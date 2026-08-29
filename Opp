@@ -1,0 +1,151 @@
+-- [[ Captain Hub V2 - Advanced Structural Engine ]] --
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
+local Window = Library.CreateLib("Captain Hub (V2)", "DarkTheme")
+
+-- Global Services
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Debris = game:GetService("Debris")
+
+local LocalPlayer = Players.LocalPlayer
+
+-- Configurations & State States
+local Config = {
+    Noclip = false,
+    WalkSpeed = 16,
+    InfiniteJump = false,
+    CustomSpeedActive = false
+}
+
+local NoclipConnection = nil
+
+-- Create UI Hierarchy
+local MainTab = Window:NewTab("Main Features")
+local PlayerSection = MainTab:NewSection("Player Mechanics")
+local CombatSection = MainTab:NewSection("Weapon Systems")
+
+-- Helper Function: Get Valid Humanoid
+local function GetHumanoid()
+    local char = LocalPlayer.Character
+    return char and char:FindFirstChildOfClass("Humanoid")
+end
+
+-- 1. Noclip Implementation (Stepped Loop Threading)
+PlayerSection:NewToggle("Noclip (เดินทะลุ)", "เปิด/ปิด การเดินทะลุกำแพง", function(state)
+    Config.Noclip = state
+    
+    if Config.Noclip then
+        NoclipConnection = RunService.Stepped:Connect(function()
+            if Config.Noclip and LocalPlayer.Character then
+                for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
+                    if part:IsA("BasePart") and part.CanCollide then
+                        part.CanCollide = false
+                    end
+                end
+            end
+        end)
+    else
+        if NoclipConnection then
+            NoclipConnection:Disconnect()
+            NoclipConnection = nil
+        end
+    end
+end)
+
+-- 2. WalkSpeed Slider with Continuous Character Support
+PlayerSection:NewSlider("WalkSpeed (วิ่งเร็ว)", "ปรับความเร็ว (1-200)", 200, 1, function(value)
+    Config.WalkSpeed = value
+    Config.CustomSpeedActive = true
+    
+    local hum = GetHumanoid()
+    if hum then
+        hum.WalkSpeed = value
+    end
+end)
+
+-- Auto re-apply speed after respawn
+LocalPlayer.CharacterAdded:Connect(function(char)
+    if Config.CustomSpeedActive then
+        local hum = char:WaitForChild("Humanoid", 5)
+        if hum then
+            hum.WalkSpeed = Config.WalkSpeed
+        end
+    end
+end)
+
+-- 3. Infinite Jump System (Input Driven)
+PlayerSection:NewToggle("Infinite Jump (กระโดดไม่จำกัด)", "กระโดดกลางอากาศได้อย่างต่อเนื่อง", function(state)
+    Config.InfiniteJump = state
+end)
+
+UserInputService.JumpRequest:Connect(function()
+    if Config.InfiniteJump then
+        local hum = GetHumanoid()
+        if hum then
+            hum:ChangeState(Enum.HumanoidStateType.Jumping)
+        end
+    end
+end)
+
+-- 4. Raycast Non-Lethal Weapon Generator
+CombatSection:NewButton("Spawn Toy Gun (เสกปืนยิงไม่ตาย)", "เสกปืนที่มี Raycast Visual & Sound Effect", function()
+    task.spawn(function()
+        local Tool = Instance.new("Tool")
+        Tool.Name = "Captain Gun"
+        Tool.RequiresHandle = true
+
+        local Handle = Instance.new("Part")
+        Handle.Name = "Handle"
+        Handle.Size = Vector3.new(0.6, 1.2, 2.5)
+        Handle.Color = Color3.fromRGB(0, 170, 255)
+        Handle.Material = Enum.Material.SmoothPlastic
+        Handle.Parent = Tool
+
+        -- Attach visual barrel effect
+        local Muzzle = Instance.new("Attachment")
+        Muzzle.Name = "MuzzleAttachment"
+        Muzzle.Position = Vector3.new(0, 0.3, -1.25)
+        Muzzle.Parent = Handle
+
+        Tool.Activated:Connect(function()
+            local char = LocalPlayer.Character
+            if not char or not char:FindFirstChild("Head") then return end
+
+            local mouse = LocalPlayer:GetMouse()
+            local targetPos = mouse.Hit.p
+            local originPos = Handle.Position
+
+            -- Play Fire Sound
+            local Sound = Instance.new("Sound")
+            Sound.SoundId = "rbxassetid://130138419"
+            Sound.Volume = 0.6
+            Sound.PlaybackSpeed = 1.2
+            Sound.Parent = Handle
+            Sound:Play()
+            Debris:AddItem(Sound, 1)
+
+            -- Laser Tracer Visual
+            local distance = (originPos - targetPos).Magnitude
+            local Laser = Instance.new("Part")
+            Laser.Size = Vector3.new(0.15, 0.15, distance)
+            Laser.CFrame = CFrame.new(originPos, targetPos) * CFrame.new(0, 0, -distance / 2)
+            Laser.Color = Color3.fromRGB(0, 255, 255)
+            Laser.Material = Enum.Material.Neon
+            Laser.Anchored = true
+            Laser.CanCollide = false
+            Laser.Parent = workspace
+
+            -- Fade out animation
+            task.spawn(function()
+                for i = 1, 5 do
+                    Laser.Transparency = i * 0.2
+                    task.wait(0.02)
+                end
+                Laser:Destroy()
+            end)
+        end)
+
+        Tool.Parent = LocalPlayer.Backpack
+    end)
+end)
