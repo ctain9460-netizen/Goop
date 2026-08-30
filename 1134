@@ -1,0 +1,211 @@
+-- ==========================================
+-- Captain Hub - Potential Piece (With Floating Toggle Button)
+-- ==========================================
+
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
+local Window = Library.CreateLib("CAPTAIN HUB - Potential Piece", "DarkTheme")
+
+-- Services & Variables
+local CoreGui = game:GetService("CoreGui")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local VirtualUser = game:GetService("VirtualUser")
+
+local LocalPlayer = Players.LocalPlayer
+local Mouse = LocalPlayer:GetMouse()
+
+-- ------------------------------------------
+-- 🔘 1. ระบบปุ่มลอยสำหรับ เปิด/ปิด สคริปต์
+-- ------------------------------------------
+local ToggleGui = Instance.new("ScreenGui")
+ToggleGui.Name = "CaptainHubToggleGUI"
+ToggleGui.Parent = CoreGui
+ToggleGui.ResetOnSpawn = false
+
+local OpenBtn = Instance.new("TextButton")
+OpenBtn.Name = "OpenButton"
+OpenBtn.Size = UDim2.new(0, 50, 0, 50)
+OpenBtn.Position = UDim2.new(0.02, 0, 0.2, 0)
+OpenBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+OpenBtn.Text = "CAPTAIN"
+OpenBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+OpenBtn.Font = Enum.Font.SourceSansBold
+OpenBtn.TextSize = 10
+OpenBtn.Active = true
+OpenBtn.Draggable = true
+OpenBtn.Parent = ToggleGui
+
+local BtnCorner = Instance.new("UICorner", OpenBtn)
+BtnCorner.CornerRadius = UDim.new(1, 0)
+
+-- กดปุ่มลอยเพื่อสลับการแสดงผล UI
+OpenBtn.MouseButton1Click:Connect(function()
+    Library:ToggleUI()
+end)
+
+-- ------------------------------------------
+-- 🖼️ 2. ระบบใส่รูปหน้าปก + ลากเลื่อน UI (Draggable)
+-- ------------------------------------------
+task.spawn(function()
+    task.wait(0.5)
+    for _, gui in pairs(CoreGui:GetChildren()) do
+        if gui:IsA("ScreenGui") and gui:FindFirstChild("Main") then
+            local mainFrame = gui.Main
+            
+            mainFrame.Active = true
+            mainFrame.Draggable = true
+            
+            if not mainFrame:FindFirstChild("BannerCover") then
+                local banner = Instance.new("ImageLabel")
+                banner.Name = "BannerCover"
+                banner.Size = UDim2.new(1, 0, 0, 80)
+                banner.Position = UDim2.new(0, 0, 0, -85)
+                banner.BackgroundTransparency = 1
+                banner.Image = "rbxassetid://6031075931" 
+                banner.ScaleType = Enum.ScaleType.Fit
+                banner.Parent = mainFrame
+                
+                local corner = Instance.new("UICorner", banner)
+                corner.CornerRadius = UDim.new(0, 8)
+            end
+        end
+    end
+end)
+
+-- ------------------------------------------
+-- 📌 3. โครงสร้างเมนู UI
+-- ------------------------------------------
+local MainTab = Window:NewTab("Main")
+local TeleportTab = Window:NewTab("Teleport")
+
+local MainSection = MainTab:NewSection("Farm & Player Features")
+local TeleportSection = TeleportTab:NewSection("Island Teleport")
+
+-- ==========================================
+-- 5 ฟังก์ชันหลัก
+-- ==========================================
+
+-- 1. ฟังก์ชันเดินทะลุ (NoClip)
+local noclipConnection
+MainSection:NewToggle("1. เดินทะลุ (NoClip)", "เดินทะลุกำแพงและสิ่งกีดขวาง", function(state)
+    if state then
+        noclipConnection = RunService.Stepped:Connect(function()
+            if LocalPlayer.Character then
+                for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        part.CanCollide = false
+                    end
+                end
+            end
+        end)
+    else
+        if noclipConnection then
+            noclipConnection:Disconnect()
+            noclipConnection = nil
+        end
+    end
+end)
+
+-- 2. ฟังก์ชันต่อยอัตโนมัติ (Auto Attack)
+local autoAttack = false
+MainSection:NewToggle("2. ต่อยอัตโนมัติ (Auto Attack)", "กดตี/ต่อยอัตโนมัติรวดเร็ว", function(state)
+    autoAttack = state
+    task.spawn(function()
+        while autoAttack do
+            VirtualUser:Button1Down(Vector2.new(0,0))
+            task.wait(0.1)
+        end
+    end)
+end)
+
+-- 3. ฟังก์ชันคลิกแล้ววาร์ป (Click Teleport)
+local clickTP = false
+MainSection:NewToggle("3. วาร์ปตามที่คลิกหน้าจอ", "กดคลิกที่ไหนวาร์ปไปที่นั่นทันที", function(state)
+    clickTP = state
+end)
+
+Mouse.Button1Down:Connect(function()
+    if clickTP and Mouse.Hit then
+        local char = LocalPlayer.Character
+        if char and char:FindFirstChild("HumanoidRootPart") then
+            char.HumanoidRootPart.CFrame = Mouse.Hit + Vector3.new(0, 3, 0)
+        end
+    end
+end)
+
+-- 5. ฟังก์ชัน Auto Farm Level (นอนตีลอยด้านหลังมอนสเตอร์)
+local autoFarm = false
+local farmConnection = nil
+
+MainSection:NewToggle("5. Auto Farm Level (นอนตีด้านหลัง)", "ลอยด้านหลังก้มตี มอนตีไม่ถึง 100%", function(state)
+    autoFarm = state
+    
+    if state then
+        farmConnection = RunService.RenderStepped:Connect(function()
+            if not autoFarm then return end
+            
+            local char = LocalPlayer.Character
+            if char and char:FindFirstChild("HumanoidRootPart") and char:FindFirstChild("Humanoid") then
+                local hrp = char.HumanoidRootPart
+                local hum = char.Humanoid
+                
+                hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+                hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+                hrp.Velocity = Vector3.new(0, 0, 0)
+                
+                for _, part in pairs(char:GetChildren()) do
+                    if part:IsA("BasePart") then
+                        part.CanCollide = false
+                    end
+                end
+                
+                local enemies = workspace:FindFirstChild("Enemies") or workspace:FindFirstChild("NPCs") or workspace
+                local target = nil
+                
+                for _, mob in pairs(enemies:GetChildren()) do
+                    if mob:FindFirstChild("Humanoid") and mob.Humanoid.Health > 0 and mob:FindFirstChild("HumanoidRootPart") then
+                        target = mob
+                        break
+                    end
+                end
+                
+                if target then
+                    local mobCFrame = target.HumanoidRootPart.CFrame
+                    local safeCFrame = mobCFrame * CFrame.new(0, 3, 3.5)
+                    
+                    hrp.CFrame = CFrame.new(safeCFrame.Position, target.HumanoidRootPart.Position) * CFrame.Angles(math.rad(-45), 0, 0)
+                    VirtualUser:Button1Down(Vector2.new(0,0))
+                else
+                    hrp.CFrame = CFrame.new(500, 50, 500)
+                end
+            end
+        end)
+    else
+        if farmConnection then
+            farmConnection:Disconnect()
+            farmConnection = nil
+        end
+    end
+end)
+
+-- 4. ฟังก์ชันวาร์ปไปเกาะอื่น (Island Teleport)
+TeleportSection:NewButton("4. วาร์ปไปเกาะเริ่มต้น (Starter Island)", "ย้ายไปยังจุดเริ่มต้น", function()
+    local char = LocalPlayer.Character
+    if char and char:FindFirstChild("HumanoidRootPart") then
+        char.HumanoidRootPart.CFrame = CFrame.new(0, 50, 0)
+    end
+end)
+
+TeleportSection:NewButton("4. วาร์ปไปเกาะถัดไป (Next Island)", "ย้ายไปยังพิกัดเกาะถัดไป", function()
+    local char = LocalPlayer.Character
+    if char and char:FindFirstChild("HumanoidRootPart") then
+        char.HumanoidRootPart.CFrame = CFrame.new(1000, 50, 1000)
+    end
+end)
+
+-- ปุ่มคีย์บอร์ดสำหรับ ซ่อน/แสดง UI
+MainSection:NewKeybind("ซ่อน / แสดง UI (Key)", "กดปุ่มเพื่อเปิดหรือปิดหน้าต่าง", Enum.KeyCode.RightControl, function()
+    Library:ToggleUI()
+end)
+
+print("Captain Hub Loaded with Floating Toggle Button!")
